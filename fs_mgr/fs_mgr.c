@@ -543,7 +543,7 @@ int fs_mgr_is_mdtp_activated()
  * first successful mount.
  * Returns -1 on error, and  FS_MGR_MNTALL_* otherwise.
  */
-int fs_mgr_mount_all(struct fstab *fstab)
+int fs_mgr_mount_all(struct fstab *fstab, int mount_mode)
 {
     int i = 0;
     int encryptable = FS_MGR_MNTALL_DEV_NOT_ENCRYPTABLE;
@@ -555,10 +555,22 @@ int fs_mgr_mount_all(struct fstab *fstab)
     if (!fstab) {
         return -1;
     }
+    /**get boot mode*/
+    property_get("ro.bootmode", propbuf, "");
+    if (strncmp(propbuf, "ffbm", 4) == 0)
+        is_ffbm = true;
 
     for (i = 0; i < fstab->num_entries; i++) {
-        /* Don't mount entries that are managed by vold */
-        if (fstab->recs[i].fs_mgr_flags & (MF_VOLDMANAGED | MF_RECOVERYONLY)) {
+        /* Skip userdata partition in ffbm mode */
+        if (is_ffbm && !strcmp(fstab->recs[i].mount_point, "/data")){
+            INFO("ffbm mode,skip mount userdata");
+            continue;
+        }
+
+        /* Don't mount entries that are managed by vold or not for the mount mode*/
+        if ((fstab->recs[i].fs_mgr_flags & (MF_VOLDMANAGED | MF_RECOVERYONLY)) ||
+             ((mount_mode == MOUNT_MODE_LATE) && !fs_mgr_is_latemount(&fstab->recs[i])) ||
+             ((mount_mode == MOUNT_MODE_EARLY) && fs_mgr_is_latemount(&fstab->recs[i]))) {
             continue;
         }
 
